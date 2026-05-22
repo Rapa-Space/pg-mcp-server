@@ -1,4 +1,6 @@
 # server/database.py
+import os
+import ssl
 import uuid
 import urllib.parse
 import asyncpg
@@ -6,6 +8,31 @@ from contextlib import asynccontextmanager
 from mcp.server.fastmcp.utilities.logging import get_logger
 
 logger = get_logger("pg-mcp.database")
+
+
+def _build_ssl_ctx_from_env():
+    cert = os.environ.get("PG_SSL_CERT")
+    key = os.environ.get("PG_SSL_KEY")
+    root = os.environ.get("PG_SSL_ROOTCERT")
+    mode = os.environ.get("PG_SSL_MODE", "verify-ca")
+    if not (cert and key):
+        return None
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.load_cert_chain(certfile=cert, keyfile=key)
+    if mode == "verify-full":
+        if root:
+            ctx.load_verify_locations(cafile=root)
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.check_hostname = True
+    elif mode == "verify-ca":
+        if root:
+            ctx.load_verify_locations(cafile=root)
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.check_hostname = False
+    else:  # "require" or any other → encrypt + mTLS, but skip server cert chain check
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
 class Database:
     def __init__(self):
@@ -84,14 +111,17 @@ class Database:
             connection_string = self.get_connection_string(conn_id)
             
             logger.info(f"Creating new database connection pool for connection ID {conn_id}")
-            self._pools[conn_id] = await asyncpg.create_pool(
-                connection_string,
+            pool_kwargs = dict(
                 min_size=2,
                 max_size=10,
                 command_timeout=60.0,
                 # Read-only mode
-                server_settings={"default_transaction_read_only": "true"}
+                server_settings={"default_transaction_read_only": "true"},
             )
+            ssl_ctx = _build_ssl_ctx_from_env()
+            if ssl_ctx is not None:
+                pool_kwargs["ssl"] = ssl_ctx
+            self._pools[conn_id] = await asyncpg.create_pool(connection_string, **pool_kwargs)
         
         return self
     

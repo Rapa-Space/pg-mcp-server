@@ -1,37 +1,45 @@
 # server/tools/connection.py
-from server.config import mcp
+import os
+from server.config import mcp, global_db
 from mcp.server.fastmcp import Context
 from server.logging_config import get_logger
 
 logger = get_logger("pg-mcp.tools.connection")
 
+# Auto-register default DSN from env so clients never need to handle credentials.
+DEFAULT_DSN = os.environ.get("PG_DSN") or os.environ.get("DATABASE_URL")
+DEFAULT_CONN_ID = global_db.register_connection(DEFAULT_DSN) if DEFAULT_DSN else None
+if DEFAULT_CONN_ID:
+    logger.info(f"Auto-registered default connection from env: {DEFAULT_CONN_ID}")
+
 def register_connection_tools():
     """Register the database connection tools with the MCP server."""
     logger.debug("Registering database connection tools")
-    
+
     @mcp.tool()
-    async def connect(connection_string: str, *, ctx: Context):
+    async def connect(connection_string: str = "", *, ctx: Context):
         """
-        Register a database connection string and return its connection ID.
-        
+        Return a connection ID for a PostgreSQL database.
+        If connection_string is empty, uses the server's default DSN
+        (PG_DSN / DATABASE_URL env), which is the only supported mode in this deployment.
+
         Args:
-            connection_string: PostgreSQL connection string (required)
+            connection_string: PostgreSQL connection string (optional; empty = use default)
             ctx: Request context (injected by the framework)
-            
+
         Returns:
             Dictionary containing the connection ID
         """
-        # Get database from context
-        # db = ctx.request_context.lifespan_context.get("db")
         db = mcp.state["db"]
-        
-        # Register the connection to get a connection ID
-        conn_id = db.register_connection(connection_string)
-        
-        # Return the connection ID
+        cs = connection_string or DEFAULT_DSN
+        if not cs:
+            raise ValueError(
+                "connection_string is empty and no PG_DSN/DATABASE_URL env is set on the server"
+            )
+        conn_id = db.register_connection(cs)
         logger.info(f"Registered database connection with ID: {conn_id}")
         return {"conn_id": conn_id}
-    
+
     @mcp.tool()
     async def disconnect(conn_id: str, *, ctx: Context):
         """
@@ -44,11 +52,12 @@ def register_connection_tools():
         Returns:
             Dictionary indicating success status
         """
-        # Get database from context
-        # db = ctx.request_context.lifespan_context.get("db")
         db = mcp.state["db"]
-        
-        # Check if the connection exists
+
+        if DEFAULT_CONN_ID and conn_id == DEFAULT_CONN_ID:
+            logger.warning(f"Refusing to disconnect default connection: {conn_id}")
+            return {"success": False, "error": "Cannot disconnect default connection"}
+
         if conn_id not in db._connection_map:
             logger.warning(f"Attempted to disconnect unknown connection ID: {conn_id}")
             return {"success": False, "error": "Unknown connection ID"}

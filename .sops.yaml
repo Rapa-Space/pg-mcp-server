@@ -1,0 +1,5 @@
+creation_rules:
+  - path_regex: (^|/)\.env(\.enc)?$
+    key_groups:
+      - age:
+          - age18p6xdjd9kl6z20tf9teynnmt7cc8607kfxhffgmhw0av852wsymqlmcusp
