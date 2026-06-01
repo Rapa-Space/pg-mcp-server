@@ -41,15 +41,22 @@ from server.oauth_compat import make_oauth_probe_routes
 
 @asynccontextmanager
 async def starlette_lifespan(app):
-    logger.info("Starlette application starting up")
-    yield
+    # Streamable HTTP 세션 매니저를 부모 lifespan 에서 단일 진입한다.
+    # streamable_http_app() 으로 마운트한 sub-app 의 내장 lifespan(session_manager.run())은
+    # Mount 시 부모로 전파되지 않으므로, 여기서 직접 run() 을 SSOT 로 구동한다.
+    # mcp.session_manager 는 streamable_http_app() 선행 호출 후에만 유효(lazy) — __main__ 순서 보장.
+    logger.info("Starlette application starting up (streamable HTTP)")
+    async with mcp.session_manager.run():
+        yield
     logger.info("Starlette application shutting down, closing all database connections")
     await global_db.close()
 
 if __name__ == "__main__":
-    logger.info("Starting MCP server with SSE transport")
+    logger.info("Starting MCP server with Streamable HTTP transport")
+    # session_manager 생성(lazy)을 위해 lifespan 진입 전에 streamable_http_app() 을 1회 호출.
+    http_app = mcp.streamable_http_app()
     # OAuth 프로브 라우트는 Mount('/') 앞에 둬서 매칭 우선순위 확보 (server/oauth_compat.py).
-    routes = make_oauth_probe_routes() + [Mount('/', app=mcp.sse_app())]
+    routes = make_oauth_probe_routes() + [Mount('/', app=http_app)]
     app = Starlette(
         routes=routes,
         lifespan=starlette_lifespan
