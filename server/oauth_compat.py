@@ -2,7 +2,7 @@
 """
 MCP 인증 스펙(2025-06-18) 호환용 OAuth 프로브 경로 핸들러.
 
-배경: MCP 클라이언트 SDK 가 SSE 연결 전에 OAuth Resource Server 메타데이터를
+배경: MCP 클라이언트 SDK 가 트랜스포트 연결 전에 OAuth Resource Server 메타데이터를
 프로브한다 (`/.well-known/oauth-protected-resource[/{path}]`,
 `/.well-known/oauth-authorization-server`, `/.well-known/openid-configuration`,
 `POST /register`). pg-mcp 는 OAuth 미지원이며, 스펙상 이 경로들이 부재(404)면
@@ -26,7 +26,7 @@ async def _oauth_not_configured(request):
 
 
 # RFC 9728 (Protected Resource Metadata) + MCP 2025-06-18 프로브 대상 경로.
-# resource-specific 변형(`/sse` 접미 등)은 path:path catch-all 로 흡수.
+# resource-specific 변형(`/mcp` 접미 등)은 path:path catch-all 로 흡수.
 _OAUTH_PROBE_GET_PATHS = (
     "/.well-known/oauth-protected-resource",
     "/.well-known/oauth-protected-resource/{path:path}",

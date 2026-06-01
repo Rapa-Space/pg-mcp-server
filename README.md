@@ -11,7 +11,7 @@ PG-MCP is a server implementation of the [Model Context Protocol](https://modelc
 
 This implementation builds upon and extends the [reference Postgres MCP implementation](https://github.com/modelcontextprotocol/servers/tree/main/src/postgres) with several key enhancements:
 
-1. **Full Server Implementation**: Built as a complete server with SSE transport for production use
+1. **Full Server Implementation**: Built as a complete server with Streamable HTTP transport for production use
 2. **Multi-database Support**: Connect to multiple PostgreSQL databases simultaneously
 3. **Rich Catalog Information**: Extracts and exposes table/column descriptions from the database catalog
 4. **Extension Context**: Provides detailed YAML-based knowledge about PostgreSQL extensions like PostGIS and pgvector
@@ -108,7 +108,7 @@ The `claude_cli.py` script requires environment variables:
 # .env file
 DATABASE_URL=postgresql://username:password@hostname:port/database
 ANTHROPIC_API_KEY=your-anthropic-api-key
-PG_MCP_URL=http://localhost:8000/sse
+PG_MCP_URL=http://localhost:8000/mcp
 ```
 
 
